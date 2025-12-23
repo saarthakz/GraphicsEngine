@@ -1,0 +1,10 @@
+build/
+compile_commands.json
+.cache/
+.vscode/
+bin/
+lib/
+*.o
+*.a
+*.so
+GraphicsEngine
