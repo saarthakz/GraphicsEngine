@@ -18,11 +18,12 @@ Before setting up the project, ensure you have the following installed on your s
 - **OpenGL**: Development libraries.
 - **GLFW3**: Windowing and input library.
 
-### Installing Dependencies (Ubuntu/Debian)
+### Installing Dependencies
+
+We provide a script to handle dependency installation for macOS and Ubuntu/Debian:
 
 ```bash
-sudo apt-get update
-sudo apt-get install build-essential cmake libgl1-mesa-dev libglfw3-dev
+./scripts/setup.sh
 ```
 
 ## Setup and Building

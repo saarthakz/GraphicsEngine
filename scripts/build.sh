@@ -6,5 +6,11 @@ if [ ! -d "build" ]; then
 fi
 
 cd build
-make -j$(nproc)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    THREADS=$(sysctl -n hw.logicalcpu)
+else
+    THREADS=$(nproc)
+fi
+
+make -j$THREADS
 echo "Build complete."
