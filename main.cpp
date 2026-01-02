@@ -1,44 +1,74 @@
 #include "engine.h"
+#include "mathematics.h"
+#include "matrix.h"
+#include "mesh.h"
+#include "object.h"
+#include "primitives.h"
 
+#include <cassert>
 #include <iostream>
+#include <vector>
 
-class ExampleApp : public Engine {
+class ThreeEngine : public Engine {
+  private:
+  Mesh m_cubeAsset;
+  std::vector<Object> m_sceneObjects;
+  Matrix m_projectionMatrix{4, 4};
+
   public:
-  ExampleApp() { m_sAppName = "Triangle Demo"; }
+  ThreeEngine() = default;
 
   protected:
   bool OnCreate() override {
-    // Called once on start
+    // 1. Create the base asset once (Centered)
+    primitives::AddCubeToMesh(m_cubeAsset, -0.5f, -0.5f, -0.5f);
+
+    // 2. Create actual game objects that USE that asset
+    Object cube1;
+    cube1.meshAsset = &m_cubeAsset;
+    cube1.position = {0.0f, 0.0f, 8.0f}; // Pushed back from 3.0
+    cube1.rotation = {0.0f, 0.0f, 0.0f};
+    m_sceneObjects.push_back(cube1);
+
+    // 3. Setup Projection
+    float fAspectRatio = (float)GetScreenWidth() / (float)GetScreenHeight();
+    m_projectionMatrix = Matrix::MakeProjection(90.0f, fAspectRatio, 0.1f, 100.0f);
+
     return true;
   }
 
   bool OnUpdate(float deltaT) override {
-    // Clear the screen to black
     Clear();
 
-    // Draw a white triangle in the middle of the screen
-    // Using simple coordinates, assuming screen size is reasonably large
-    // Vertex 1: Top (center)
-    // Vertex 2: Bottom-left
-    // Vertex 3: Bottom-right
-    int x1 = m_nScreenWidth / 2;
-    int y1 = m_nScreenHeight / 4;
+    for (auto& obj : m_sceneObjects) {
+      // 1. Update State
+      obj.rotation.y += 60.0f * deltaT;
+      obj.rotation.x += 30.0f * deltaT;
 
-    int x2 = m_nScreenWidth / 4;
-    int y2 = 3 * m_nScreenHeight / 4;
+      // 2. Pipeline: Final Matrix = World * Projection
+      Matrix matFinal = Matrix::Multiply(obj.GetWorldMatrix(), m_projectionMatrix);
 
-    int x3 = 3 * m_nScreenWidth / 4;
-    int y3 = 3 * m_nScreenHeight / 4;
+      // 3. Render
+      for (const auto& tri : obj.meshAsset->tris) {
+        Triangle triProjected;
+        for (int i = 0; i < 3; i++) {
+          mathematics::ProjectToScreen(tri.points[i], triProjected.points[i], matFinal,
+                                       GetScreenWidth(), GetScreenHeight());
+        }
 
-    DrawTriangle(x1, y1, x2, y2, x3, y3, 255, 255, 255);
+        // Now we can just draw the triangle directly
+        DrawTriangle(triProjected, Color::White);
+      }
+    }
 
     return true;
   }
 };
 
 int main() {
-  ExampleApp app;
-  if (app.Initialize(800, 600)) {
+  ThreeEngine app;
+  // Use our new flexible Initialize method
+  if (app.Initialize(800, 600, "ThreeEngine")) {
     app.Run();
   } else {
     std::cerr << "Failed to initialize engine" << std::endl;
