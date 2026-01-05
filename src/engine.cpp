@@ -1,7 +1,4 @@
 #include "engine.h"
-
-#include "mathematics.h"
-
 #ifdef __APPLE__
 #include <OpenGL/gl.h>
 #else
@@ -249,63 +246,6 @@ void Engine::DrawCircle(int xc, int yc, int radius, Color color) {
   }
 }
 
-void Engine::DrawMesh(const Mesh& mesh, const Matrix& matWorld, const Matrix& matView,
-                      const Matrix& matProj, Color color) {
-  for (const auto& tri : mesh.GetTriangles()) {
-    Triangle triTransformed;
-    for (int i = 0; i < 3; i++) {
-      float w = 1.0f;
-      // Applying World Transform
-      mathematics::MultiplyMatrixVector(tri.points[i], triTransformed.points[i], w, matWorld);
-    }
-
-    // 1. Calculate the surface normal and the vector from camera to triangle
-    VecThree normal = mathematics::CalculateNormal(triTransformed);
-    VecThree vRay = mathematics::vector::Sub(triTransformed.points[0], m_vCameraPos);
-
-    // 2. Backface Culling: Only render if the triangle normal is facing the camera
-    if (mathematics::vector::DotProduct(normal, vRay) < 0.0f) {
-      // 3. Flat Shading: Calculate how much the triangle faces the global light source
-      float dp = mathematics::vector::DotProduct(normal, m_vLightDirection);
-
-      // We add a little 'Ambient' light so things aren't pitch black
-      Color correctedColor = Color::ApplyIntensity(color, std::max(0.1f, dp));
-
-      // 4. Convert World Space -> View Space
-      Triangle triView;
-      for (int i = 0; i < 3; i++) {
-        float w = 1.0f;
-        mathematics::MultiplyMatrixVector(triTransformed.points[i], triView.points[i], w, matView);
-      }
-
-      // 5. Clip against Near Plane (z = 0.1) in View Space
-      Triangle clipped[2];
-      int nClippedTriangles = mathematics::TriangleClipAgainstPlane(
-        {0.0f, 0.0f, 0.1f}, {0.0f, 0.0f, 1.0f}, triView, clipped[0], clipped[1]);
-
-      for (int n = 0; n < nClippedTriangles; n++) {
-        // 6. Project from View Space -> Screen
-        Triangle triProjected;
-        for (int i = 0; i < 3; i++) {
-          mathematics::ProjectToScreen(clipped[n].points[i], triProjected.points[i], matProj,
-                                       m_nScreenWidth, m_nScreenHeight);
-        }
-        FillTriangle(triProjected, correctedColor);
-      }
-    }
-  }
-}
-
-#include "object.h"
-void Engine::DrawObject(const Object& obj, const Matrix& matView, const Matrix& matProj,
-                        Color color) {
-  // 1. Safety check: Don't draw if there's no mesh (Pivots/Empty Objects)
-  if (!obj.GetMesh())
-    return;
-
-  DrawMesh(*obj.GetMesh(), obj.GetWorldMatrix(), matView, matProj, color);
-}
-
 void Engine::UpdateInputState() {
   for (int k = 0; k < 512; ++k) {
     bool isDown = platform::GetKey(m_window, k) == GLFW_PRESS;
@@ -323,7 +263,3 @@ void Engine::UpdateInputState() {
 }
 
 Engine::sKeyState Engine::GetKey(int key) const { return m_keyStates[key]; }
-
-void Engine::SetLightDirection(VecThree dir) {
-  m_vLightDirection = mathematics::vector::Normalise(dir);
-}

@@ -30,5 +30,7 @@ class Matrix {
   static Matrix MakeRotationZ(float fAngleRad);
   static Matrix MakeTranslation(float x, float y, float z);
   static Matrix MakeProjection(float fFovDegrees, float fAspectRatio, float fNear, float fFar);
+  static Matrix PointAt(const VecThree& pos, const VecThree& target, const VecThree& up);
+  static Matrix QuickPointAtInverse(const Matrix& m); // Only for specialized Camera matrices
   static Matrix Multiply(const Matrix& matOne, const Matrix& matTwo);
 };

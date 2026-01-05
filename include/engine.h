@@ -53,13 +53,9 @@ class Engine {
   int m_nScreenHeight = 0;
   std::string m_sAppName;
 
+  protected:
   std::vector<Color> m_vFramebuffer;
   std::vector<float> m_vDepthBuffer;
-
-  protected:
-  // Engine State
-  VecThree m_vCameraPos = {0.0f, 0.0f, 0.0f};
-  VecThree m_vLightDirection = {0.0f, 0.0f, -1.0f};
 
   // Input State
   struct sKeyState {
@@ -83,12 +79,6 @@ class Engine {
   void FillTriangle(const Triangle& tri, Color color = Color::White);
   void DrawCircle(int xc, int yc, int radius, Color color = Color::White);
 
-  // High-level 3D Rendering (The Pipeline)
-  void DrawMesh(const Mesh& mesh, const Matrix& matWorld, const Matrix& matView,
-                const Matrix& matProj, Color color = Color::White);
-  void DrawObject(const struct Object& obj, const Matrix& matView, const Matrix& matProj,
-                  Color color = Color::White);
-
   // User Interface Hooks (Overridden by the derived class)
   virtual bool OnCreate() = 0;
   virtual bool OnUpdate(float deltaT) = 0;
@@ -105,9 +95,4 @@ class Engine {
   sKeyState GetKey(int key) const;
   int GetScreenWidth() const { return m_nScreenWidth; }
   int GetScreenHeight() const { return m_nScreenHeight; }
-  void SetCameraPosition(VecThree pos) { m_vCameraPos = pos; }
-  VecThree GetCameraPosition() const { return m_vCameraPos; }
-
-  void SetLightDirection(VecThree dir);
-  VecThree GetLightDirection() const { return m_vLightDirection; }
 };

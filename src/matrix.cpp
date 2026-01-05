@@ -1,5 +1,8 @@
 #include "matrix.h"
 
+#include "mathematics.h"
+#include "mesh.h"
+
 #include <cmath>
 #include <cstring>
 
@@ -139,6 +142,99 @@ Matrix Matrix::MakeProjection(float fFovDegrees, float fAspectRatio, float fNear
   matrix.Set(3, 2, (-fFar * fNear) / (fFar - fNear));
   matrix.Set(2, 3, 1.0f);
   matrix.Set(3, 3, 0.0f);
+  return matrix;
+}
+
+/**
+ * Computes a matrix that "points at" a target from a position.
+ * Used primarily for camera orientation where:
+ * Forward = Target - Pos
+ * Right   = Up (World) x Forward
+ * Up      = Forward x Right
+ *
+ * Matrix Layout (Column-Major concept, stored as Row-Major):
+ * [ Rx Ry Rz 0 ] - Right Vector
+ * [ Ux Uy Uz 0 ] - Up Vector
+ * [ Fx Fy Fz 0 ] - Forward Vector
+ * [ Px Py Pz 1 ] - Position
+ */
+Matrix Matrix::PointAt(const VecThree& vecCameraPos, const VecThree& vecCameraTgt,
+                       const VecThree& vecWorldUp) {
+
+  // Calculate new forward direction
+  VecThree vecDirection = mathematics::vector::Sub(vecCameraTgt, vecCameraPos);
+  vecDirection = mathematics::vector::Normalise(vecDirection);
+
+  // Calculate new Up direction
+  VecThree vecScaledDirection = mathematics::vector::Mul(
+    vecDirection, mathematics::vector::DotProduct(vecWorldUp, vecDirection));
+  VecThree vecNewUp = mathematics::vector::Sub(vecWorldUp, vecScaledDirection);
+  vecNewUp = mathematics::vector::Normalise(vecNewUp);
+
+  // New Right direction is just cross product
+  VecThree vecNewRight = mathematics::vector::CrossProduct(vecNewUp, vecDirection);
+
+  // Construct Dimensioning and Translation Matrix
+  Matrix matrix(4, 4);
+  matrix.Set(0, 0, vecNewRight.x);
+  matrix.Set(0, 1, vecNewRight.y);
+  matrix.Set(0, 2, vecNewRight.z);
+  matrix.Set(0, 3, 0.0f);
+  matrix.Set(1, 0, vecNewUp.x);
+  matrix.Set(1, 1, vecNewUp.y);
+  matrix.Set(1, 2, vecNewUp.z);
+  matrix.Set(1, 3, 0.0f);
+  matrix.Set(2, 0, vecDirection.x);
+  matrix.Set(2, 1, vecDirection.y);
+  matrix.Set(2, 2, vecDirection.z);
+  matrix.Set(2, 3, 0.0f);
+  matrix.Set(3, 0, vecCameraPos.x);
+  matrix.Set(3, 1, vecCameraPos.y);
+  matrix.Set(3, 2, vecCameraPos.z);
+  matrix.Set(3, 3, 1.0f);
+  return matrix;
+}
+
+/**
+ * Specialized fast inverse for Orthonormal matrices (Rotation + Translation).
+ * This is perfect for the View Matrix (inverse of Camera Matrix).
+ *
+ * Given a PointAt Matrix M:
+ * [ R00 R01 R02  0 ]  (Right Vector)
+ * [ R10 R11 R12  0 ]  (Up Vector)
+ * [ R20 R21 R22  0 ]  (Forward Vector)
+ * [ Tx  Ty  Tz   1 ]  (Position)
+ *
+ * The Inverse M^-1 is:
+ * [ R00 R10 R20  0 ]  (Transpose of 3x3)
+ * [ R01 R11 R21  0 ]
+ * [ R02 R12 R22  0 ]
+ * [ -T·R -T·U -T·F 1 ] (Negative Dot Product of Pos and Axis)
+ */
+Matrix Matrix::QuickPointAtInverse(const Matrix& m) {
+  Matrix matrix(4, 4);
+  matrix.Set(0, 0, m.Get(0, 0));
+  matrix.Set(0, 1, m.Get(1, 0));
+  matrix.Set(0, 2, m.Get(2, 0));
+  matrix.Set(0, 3, 0.0f);
+  matrix.Set(1, 0, m.Get(0, 1));
+  matrix.Set(1, 1, m.Get(1, 1));
+  matrix.Set(1, 2, m.Get(2, 1));
+  matrix.Set(1, 3, 0.0f);
+  matrix.Set(2, 0, m.Get(0, 2));
+  matrix.Set(2, 1, m.Get(1, 2));
+  matrix.Set(2, 2, m.Get(2, 2));
+  matrix.Set(2, 3, 0.0f);
+  matrix.Set(3, 0,
+             -(m.Get(3, 0) * matrix.Get(0, 0) + m.Get(3, 1) * matrix.Get(1, 0) +
+               m.Get(3, 2) * matrix.Get(2, 0)));
+  matrix.Set(3, 1,
+             -(m.Get(3, 0) * matrix.Get(0, 1) + m.Get(3, 1) * matrix.Get(1, 1) +
+               m.Get(3, 2) * matrix.Get(2, 1)));
+  matrix.Set(3, 2,
+             -(m.Get(3, 0) * matrix.Get(0, 2) + m.Get(3, 1) * matrix.Get(1, 2) +
+               m.Get(3, 2) * matrix.Get(2, 2)));
+  matrix.Set(3, 3, 1.0f);
   return matrix;
 }
 

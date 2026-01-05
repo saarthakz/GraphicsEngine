@@ -66,33 +66,46 @@ Remove build artifacts:
 - `scripts/`: Helper shells scripts for automation.
 - `build/`: Target directory for compiled binaries (created during configuration).
 
+## Camera Controls
+
+The engine includes a full first-person camera system with the following controls:
+
+- **Movement**: 
+  - `W` / `S`: Move Forward / Backward
+  - `A` / `D`: Strafe Left / Right
+  - `Q` / `Space`: Move Up (Ascend)
+  - `E` / `Left Ctrl`: Move Down (Descend)
+- **Rotation**:
+  - `Left` / `Right` Arrow: Pan (Yaw)
+  - `Up` / `Down` Arrow: Tilt (Pitch)
+
 ## Getting Started
 
-To create your own application, simply inherit from the `Engine` class and override the lifecycle methods:
+To create a 3D application, use the `ThreeEngine` class. You can specify which 3D model to load directly in the entry point:
 
 ```cpp
-class MyGame : public Engine {
-public:
-    bool OnCreate() override {
-        // Initialization code here
-        return true;
-    }
-
-    bool OnUpdate(float deltaT) override {
-        Clear(); // Clear screen
-        // Rendering logic here
-        return true;
-    }
-};
+#include "three.h"
+#include <iostream>
 
 int main() {
-    MyGame game;
-    if (game.Initialize(800, 600)) {
-        game.Run();
+    ThreeEngine app;
+    
+    // Initialize window with Width, Height, and Title
+    if (app.Initialize(800, 600, "ThreeEngine")) {
+        // Load an .obj asset from the resources directory
+        app.LoadMeshAsset("resources/axes.obj");
+        
+        // Start the engine loop
+        app.Run();
+    } else {
+        std::cerr << "Failed to initialize engine" << std::endl;
     }
     return 0;
 }
 ```
+
+### Adding New Assets
+Place your `.obj` files in the `resources/` directory and load them using `app.LoadMeshAsset("resources/your_model.obj")`.
 
 ## License
 This project is open-source and available under the MIT License.
