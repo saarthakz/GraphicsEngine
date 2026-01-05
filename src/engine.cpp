@@ -2,7 +2,11 @@
 
 #include "mathematics.h"
 
+#ifdef __APPLE__
+#include <OpenGL/gl.h>
+#else
 #include <GL/gl.h>
+#endif
 #include <cmath>
 
 // Static Color definitions
@@ -38,6 +42,9 @@ bool Engine::Initialize(int width, int height, std::string appName) {
   if (!platform::Init())
     return false;
 
+#ifdef __APPLE__
+  glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_FALSE);
+#endif
   m_window =
     glfwCreateWindow(m_nScreenWidth, m_nScreenHeight, m_sAppName.c_str(), nullptr, nullptr);
 
