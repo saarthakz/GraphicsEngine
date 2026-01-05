@@ -1,4 +1,5 @@
 #pragma once
+struct VecThree;
 
 class Matrix {
   int m_iRows;

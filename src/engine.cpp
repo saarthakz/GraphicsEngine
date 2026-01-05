@@ -1,5 +1,7 @@
 #include "engine.h"
 
+#include "mathematics.h"
+
 #include <GL/gl.h>
 #include <cmath>
 
@@ -46,6 +48,7 @@ bool Engine::Initialize(int width, int height, std::string appName) {
   glfwSwapInterval(1);
 
   m_vFramebuffer.resize(m_nScreenWidth * m_nScreenHeight);
+  m_vDepthBuffer.resize(m_nScreenWidth * m_nScreenHeight);
   Clear();
 
   return true;
@@ -75,6 +78,8 @@ void Engine::Run() {
 void Engine::Clear(Color color) {
   for (auto& p : m_vFramebuffer)
     p = color;
+  for (auto& d : m_vDepthBuffer)
+    d = 1.0f; // Far distance
 }
 
 void Engine::Draw(int x, int y, Color color) {
@@ -122,6 +127,96 @@ void Engine::DrawTriangle(const Triangle& tri, Color color) {
                (int)tri.points[1].y, (int)tri.points[2].x, (int)tri.points[2].y, color);
 }
 
+void Engine::FillTriangle(int x1, int y1, float z1, int x2, int y2, float z2, int x3, int y3,
+                          float z3, Color color) {
+  // Sort vertices by Y
+  if (y1 > y2) {
+    std::swap(y1, y2);
+    std::swap(x1, x2);
+    std::swap(z1, z2);
+  }
+  if (y1 > y3) {
+    std::swap(y1, y3);
+    std::swap(x1, x3);
+    std::swap(z1, z3);
+  }
+  if (y2 > y3) {
+    std::swap(y2, y3);
+    std::swap(x2, x3);
+    std::swap(z2, z3);
+  }
+
+  auto drawline = [&](int y, int x_start, float z_start, int x_end, float z_end) {
+    if (y < 0 || y >= m_nScreenHeight)
+      return;
+
+    if (x_start > x_end) {
+      std::swap(x_start, x_end);
+      std::swap(z_start, z_end);
+    }
+
+    float z_step = (x_end != x_start) ? (z_end - z_start) / (float)(x_end - x_start) : 0.0f;
+    float z = z_start;
+
+    int x_run_start = std::max(0, x_start);
+    int x_run_end = std::min(m_nScreenWidth - 1, x_end);
+
+    if (x_start < 0) {
+      z += z_step * (float)(-x_start);
+    }
+
+    // For every pixel in this horizontal line
+    for (int x = x_run_start; x <= x_run_end; x++) {
+      int idx = y * m_nScreenWidth + x;
+
+      // --- Z-BUFFER DEPTH TEST ---
+      if (z < m_vDepthBuffer[idx]) {
+        m_vDepthBuffer[idx] = z;
+        m_vFramebuffer[idx] = color;
+      }
+      z += z_step;
+    }
+  };
+
+  // Top half: y1 to y2
+  if (y2 != y1) {
+    float dxy_left = (float)(x2 - x1) / (float)(y2 - y1);
+    float dxy_right = (float)(x3 - x1) / (float)(y3 - y1);
+    float dzy_left = (float)(z2 - z1) / (float)(y2 - y1);
+    float dzy_right = (float)(z3 - z1) / (float)(y3 - y1);
+
+    for (int y = y1; y < y2; y++) {
+      int xs = x1 + (int)((float)(y - y1) * dxy_left);
+      int xe = x1 + (int)((float)(y - y1) * dxy_right);
+      float zs = z1 + (float)(y - y1) * dzy_left;
+      float ze = z1 + (float)(y - y1) * dzy_right;
+      drawline(y, xs, zs, xe, ze);
+    }
+  }
+
+  // Bottom half: y2 to y3
+  if (y3 != y2) {
+    float dxy_left = (float)(x3 - x2) / (float)(y3 - y2);
+    float dxy_right = (float)(x3 - x1) / (float)(y3 - y1);
+    float dzy_left = (float)(z3 - z2) / (float)(y3 - y2);
+    float dzy_right = (float)(z3 - z1) / (float)(y3 - y1);
+
+    for (int y = y2; y <= y3; y++) {
+      int xs = x2 + (int)((float)(y - y2) * dxy_left);
+      int xe = x1 + (int)((float)(y - y1) * dxy_right);
+      float zs = z2 + (float)(y - y2) * dzy_left;
+      float ze = z1 + (float)(y - y1) * dzy_right;
+      drawline(y, xs, zs, xe, ze);
+    }
+  }
+}
+
+void Engine::FillTriangle(const Triangle& tri, Color color) {
+  FillTriangle((int)tri.points[0].x, (int)tri.points[0].y, tri.points[0].z, (int)tri.points[1].x,
+               (int)tri.points[1].y, tri.points[1].z, (int)tri.points[2].x, (int)tri.points[2].y,
+               tri.points[2].z, color);
+}
+
 void Engine::DrawCircle(int xc, int yc, int radius, Color color) {
   int x = 0;
   int y = radius;
@@ -147,6 +242,63 @@ void Engine::DrawCircle(int xc, int yc, int radius, Color color) {
   }
 }
 
+void Engine::DrawMesh(const Mesh& mesh, const Matrix& matWorld, const Matrix& matView,
+                      const Matrix& matProj, Color color) {
+  for (const auto& tri : mesh.GetTriangles()) {
+    Triangle triTransformed;
+    for (int i = 0; i < 3; i++) {
+      float w = 1.0f;
+      // Applying World Transform
+      mathematics::MultiplyMatrixVector(tri.points[i], triTransformed.points[i], w, matWorld);
+    }
+
+    // 1. Calculate the surface normal and the vector from camera to triangle
+    VecThree normal = mathematics::CalculateNormal(triTransformed);
+    VecThree vRay = mathematics::vector::Sub(triTransformed.points[0], m_vCameraPos);
+
+    // 2. Backface Culling: Only render if the triangle normal is facing the camera
+    if (mathematics::vector::DotProduct(normal, vRay) < 0.0f) {
+      // 3. Flat Shading: Calculate how much the triangle faces the global light source
+      float dp = mathematics::vector::DotProduct(normal, m_vLightDirection);
+
+      // We add a little 'Ambient' light so things aren't pitch black
+      Color correctedColor = Color::ApplyIntensity(color, std::max(0.1f, dp));
+
+      // 4. Convert World Space -> View Space
+      Triangle triView;
+      for (int i = 0; i < 3; i++) {
+        float w = 1.0f;
+        mathematics::MultiplyMatrixVector(triTransformed.points[i], triView.points[i], w, matView);
+      }
+
+      // 5. Clip against Near Plane (z = 0.1) in View Space
+      Triangle clipped[2];
+      int nClippedTriangles = mathematics::TriangleClipAgainstPlane(
+        {0.0f, 0.0f, 0.1f}, {0.0f, 0.0f, 1.0f}, triView, clipped[0], clipped[1]);
+
+      for (int n = 0; n < nClippedTriangles; n++) {
+        // 6. Project from View Space -> Screen
+        Triangle triProjected;
+        for (int i = 0; i < 3; i++) {
+          mathematics::ProjectToScreen(clipped[n].points[i], triProjected.points[i], matProj,
+                                       m_nScreenWidth, m_nScreenHeight);
+        }
+        FillTriangle(triProjected, correctedColor);
+      }
+    }
+  }
+}
+
+#include "object.h"
+void Engine::DrawObject(const Object& obj, const Matrix& matView, const Matrix& matProj,
+                        Color color) {
+  // 1. Safety check: Don't draw if there's no mesh (Pivots/Empty Objects)
+  if (!obj.GetMesh())
+    return;
+
+  DrawMesh(*obj.GetMesh(), obj.GetWorldMatrix(), matView, matProj, color);
+}
+
 void Engine::UpdateInputState() {
   for (int k = 0; k < 512; ++k) {
     bool isDown = platform::GetKey(m_window, k) == GLFW_PRESS;
@@ -164,3 +316,7 @@ void Engine::UpdateInputState() {
 }
 
 Engine::sKeyState Engine::GetKey(int key) const { return m_keyStates[key]; }
+
+void Engine::SetLightDirection(VecThree dir) {
+  m_vLightDirection = mathematics::vector::Normalise(dir);
+}

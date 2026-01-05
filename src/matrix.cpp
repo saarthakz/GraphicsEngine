@@ -108,9 +108,33 @@ Matrix Matrix::MakeProjection(float fFovDegrees, float fAspectRatio, float fNear
   Matrix matrix(4, 4);
   float fFovRad = fFovDegrees * (3.14159265f / 180.0f);
   float fFovTanInv = 1.0f / tanf(fFovRad / 2.0f);
+  /*
+   * Projection Matrix Layout:
+   * [ k     0      0                          0 ]
+   * [ 0     a*k    0                          0 ]
+   * [ 0     0      fFar/(fFar-fNear)          1 ]
+   * [ 0     0      -fFar*fNear/(fFar-fNear)   0 ]
+   *
+   * a = Aspect ratio - Compensates for screen width/height difference to avoid stretching
+   * k = FOV factor - 1 / tan(fov / 2) - Horizontal FOV (XZ plane); higher k compresses. Used for
+   * normalizing the X coordinate. fNear = Near plane - the closest visible distance; maps to 0 in
+   * normalized depth fFar = Far plane - the furthest visible distance; maps to 1 in normalized
+   * depth
+   *
+   * Transformation of [x, y, z, 1]:
+   * x' = x * k
+   * y' = y * a * k
+   * z' = (fFar * (z - fNear)) / (fFar - fNear)
+   * w' = z
+   *
+   * After w-division (w' = z):
+   * x_out = (x * k) / z
+   * y_out = (y * a * k) / z
+   * z_out = (fFar * (z - fNear)) / (z * (fFar - fNear))
+   */
 
-  matrix.Set(0, 0, fAspectRatio * fFovTanInv);
-  matrix.Set(1, 1, fFovTanInv);
+  matrix.Set(0, 0, fFovTanInv);
+  matrix.Set(1, 1, fAspectRatio * fFovTanInv);
   matrix.Set(2, 2, fFar / (fFar - fNear));
   matrix.Set(3, 2, (-fFar * fNear) / (fFar - fNear));
   matrix.Set(2, 3, 1.0f);

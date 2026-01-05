@@ -1,9 +1,7 @@
 #include "engine.h"
-#include "mathematics.h"
 #include "matrix.h"
 #include "mesh.h"
 #include "object.h"
-#include "primitives.h"
 
 #include <cassert>
 #include <iostream>
@@ -11,24 +9,53 @@
 
 class ThreeEngine : public Engine {
   private:
-  Mesh m_cubeAsset;
+  Mesh m_objAsset;
   std::vector<Object> m_sceneObjects;
   Matrix m_projectionMatrix{4, 4};
+
+  // Helper method to get the updated camera position
+  VecThree UpdateCamera(float deltaT) {
+    VecThree camPos = GetCameraPosition();
+    float fSpeed = 5.0f * deltaT;
+
+    if (GetKey(GLFW_KEY_W).bHeld)
+      camPos.z += fSpeed;
+    if (GetKey(GLFW_KEY_S).bHeld)
+      camPos.z -= fSpeed;
+    if (GetKey(GLFW_KEY_A).bHeld)
+      camPos.x -= fSpeed;
+    if (GetKey(GLFW_KEY_D).bHeld)
+      camPos.x += fSpeed;
+    if (GetKey(GLFW_KEY_UP).bHeld)
+      camPos.y += fSpeed;
+    if (GetKey(GLFW_KEY_DOWN).bHeld)
+      camPos.y -= fSpeed;
+
+    SetCameraPosition(camPos);
+    return camPos;
+  }
 
   public:
   ThreeEngine() = default;
 
   protected:
   bool OnCreate() override {
-    // 1. Create the base asset once (Centered)
-    primitives::AddCubeToMesh(m_cubeAsset, -0.5f, -0.5f, -0.5f);
+    // SetLightDirection({0.5f, 1.0f, -0.5f}); // Light from top-right-front
 
-    // 2. Create actual game objects that USE that asset
-    Object cube1;
-    cube1.meshAsset = &m_cubeAsset;
-    cube1.position = {0.0f, 0.0f, 8.0f}; // Pushed back from 3.0
-    cube1.rotation = {0.0f, 0.0f, 0.0f};
-    m_sceneObjects.push_back(cube1);
+    // 2. Load Assets
+    m_objAsset.LoadFromObjectFile("resources/axes.obj");
+
+    // Enable Light Source for the shiny new ship
+    SetLightDirection({0.2f, 1.0f, -0.5f});
+
+    // 2. Setup Scene
+    m_sceneObjects.reserve(10);
+
+    // Object 0: The Obj Asset
+    Object obj;
+    obj.SetMesh(&m_objAsset);
+    obj.SetPosition({0.0f, 0.0f, 10.0f});
+    m_sceneObjects.push_back(obj);
 
     // 3. Setup Projection
     float fAspectRatio = (float)GetScreenWidth() / (float)GetScreenHeight();
@@ -38,27 +65,18 @@ class ThreeEngine : public Engine {
   }
 
   bool OnUpdate(float deltaT) override {
+    // 1. Handle Camera Movement
+    VecThree camPos = UpdateCamera(deltaT);
+
+    // 2. Setup View Matrix (Translation only)
+    Matrix matView = Matrix::MakeTranslation(-camPos.x, -camPos.y, -camPos.z);
+
+    // 2. Render
     Clear();
 
-    for (auto& obj : m_sceneObjects) {
-      // 1. Update State
-      obj.rotation.y += 60.0f * deltaT;
-      obj.rotation.x += 30.0f * deltaT;
-
-      // 2. Pipeline: Final Matrix = World * Projection
-      Matrix matFinal = Matrix::Multiply(obj.GetWorldMatrix(), m_projectionMatrix);
-
-      // 3. Render
-      for (const auto& tri : obj.meshAsset->tris) {
-        Triangle triProjected;
-        for (int i = 0; i < 3; i++) {
-          mathematics::ProjectToScreen(tri.points[i], triProjected.points[i], matFinal,
-                                       GetScreenWidth(), GetScreenHeight());
-        }
-
-        // Now we can just draw the triangle directly
-        DrawTriangle(triProjected, Color::White);
-      }
+    // All objects (including the pivot) are passed to the renderer.
+    for (const auto& obj : m_sceneObjects) {
+      DrawObject(obj, matView, m_projectionMatrix, Color::White);
     }
 
     return true;

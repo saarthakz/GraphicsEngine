@@ -5,7 +5,10 @@ A lightweight C++ graphics engine framework built on top of **OpenGL** and **GLF
 ## Features
 
 - **Simplified API**: Easy-to-use `Engine` base class with `OnCreate` and `OnUpdate` callbacks.
-- **Rendering Primitives**: Built-in support for clearing the screen and drawing basic shapes like triangles.
+- **Rendering Primitives**: Built-in support for software-based rasterization (triangles, lines, circles).
+- **3D Model Loading**: Support for loading and rendering `.obj` files.
+- **Interactive Camera**: Real-time 3D camera system with movement controls.
+- **Scene Graph**: Transform-based object management with parent-child relationships.
 - **Cross-Platform Build System**: Managed with **CMake** for easy configuration across different environments.
 - **Automated Scripts**: Includes helper scripts for configuration, building, and running.
 
@@ -48,10 +51,17 @@ Build (if necessary) and execute the engine:
 ./scripts/run.sh
 ```
 
+### 4. Clean the Project
+Remove build artifacts:
+```bash
+./scripts/clean.sh
+```
+
 ## Project Structure
 
 - `include/`: Header files for the core engine.
 - `src/`: Implementation of the engine logic.
+- `resources/`: 3D models and assets (e.g., `.obj` files).
 - `main.cpp`: Entry point and example application logic.
 - `scripts/`: Helper shells scripts for automation.
 - `build/`: Target directory for compiled binaries (created during configuration).
